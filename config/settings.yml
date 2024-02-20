@@ -21,11 +21,11 @@ settings:
         gethost: 1
         url: localhost:9527
     email:
-        alias: ferry
-        host: smtp.163.com
-        pass: your password
+        alias: qq_mail
+        host: smtp.qq.com
+        pass: smdhotlivjrobfcd
         port: 465
-        user: fdevops@163.com
+        user: congyu.liu@qq.com
     gorm:
         logmode: 0
         maxidleconn: 0
