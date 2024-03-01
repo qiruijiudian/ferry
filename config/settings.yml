@@ -19,13 +19,13 @@ settings:
         username: root
     domain:
         gethost: 1
-        url: localhost:9527
+        url: order.cdqrmi.com
     email:
         alias: qq_mail
         host: smtp.qq.com
-        pass: smdhotlivjrobfcd
+        pass: ojqaiqzqoxasdceg
         port: 465
-        user: congyu.liu@qq.com
+        user: 2733396900@qq.com
     gorm:
         logmode: 0
         maxidleconn: 0
