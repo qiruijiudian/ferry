@@ -8,7 +8,7 @@ RUN apk update && \
     rm -rf /var/cache/apk/* /tmp/* /var/tmp/* $HOME/.cache
 RUN git clone https://github.com/qiruijiudian/ferry_web.git
 
-WORKDIR ferry_web
+WORKDIR /opt/workflow/ferry_web
 
 RUN npm install -g cnpm --registry=https://registry.npmmirror.com
 RUN npm uninstall node-sass && npm i -D sass --registry=https://registry.npmmirror.com

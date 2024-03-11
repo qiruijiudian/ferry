@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "cache-loader": "^4.1.0"
+  },
+  "devDependencies": {
+    "thread-loader": "^4.0.2",
+    "webpack": "^5.89.0"
+  }
+}

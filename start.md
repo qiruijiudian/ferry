@@ -10,6 +10,9 @@
     
     docker run -itd --name ferry -v /home/workorder/ferry/config:/opt/workflow/ferry/config -p 82:8002 {image_name}:{tag}
 
-    docker cp ./entrypoint.sh 3e5a76ecfe48:/opt/workflow/ferry/
+    docker cp ./entrypoint.sh {container_id}:/opt/workflow/ferry/
+    docker cp ./email.html {container_id}:/opt/workflow/ferry/static/template/
 
-    打出来的包缺一个入口文件需要手动塞进去
+    打出来的包缺一个入口文件和邮件模板需要手动塞进去
+
+.env.development 填本地 ip 地址
