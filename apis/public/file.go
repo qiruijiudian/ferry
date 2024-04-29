@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"ferry/tools/app"
@@ -8,12 +9,20 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/spf13/viper"
+
+	"math/rand"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/go-redis/redis/v8"
 )
+
+var RedisClient *redis.Client
 
 // @Summary 上传图片
 // @Description 获取JSON
@@ -111,4 +120,98 @@ func UploadFile(c *gin.Context) {
 		app.Error(c, 200, errors.New(""), "标识不正确")
 		return
 	}
+}
+func DownloadFile(c *gin.Context) {
+
+	saveFilePath := "static/uploadfile/excel/output.xlsx"
+	// data, err := ioutil.ReadFile(saveFilePath)
+	// if err != nil {
+	// 	c.AbortWithStatus(404)
+	// 	return
+	// }
+	fmt.Println(saveFilePath)
+	// err2 := _main(tea.StringSlice(os.Args[1:]), request.Phone, "233456")
+	// err2 := _main(nil, "13588788263", "233456")
+	// if err2 != nil {
+	// 	panic(err2)
+	// }
+	c.Header("Content-Disposition", "attachment; filename=output.xlsx")
+	// c.Data(200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data)
+	c.JSON(200, gin.H{
+		"message": "sccuess",
+	})
+}
+func SendSms(c *gin.Context) {
+	var request struct {
+		Phone string `json:"phone"`
+	}
+	if err := c.BindJSON(&request); err != nil {
+		c.JSON(404, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	code, err3 := storeSmsCodeToRedis(request.Phone)
+	if err3 != nil {
+		panic(err3)
+	}
+
+	err2 := _main(tea.StringSlice(os.Args[1:]), request.Phone, code)
+	if err2 != nil {
+		panic(err2)
+	}
+	app.OK(c, "验证码发送成功", "验证码发送成功")
+}
+
+func storeSmsCodeToRedis(phoneNumber string) (string, error) {
+	if RedisClient == nil {
+		InitRedis()
+		// panic("Redis client is not initialized. Call initRedis() first.")
+	}
+
+	// 生成6位验证码
+	code, err := generateRandomCode(6)
+	if err != nil {
+		return code, err
+	}
+	fmt.Println(code)
+	// 设置验证码到Redis，有效期为10分钟
+	ctx := context.Background()
+	err = RedisClient.Set(ctx, fmt.Sprintf("sms_code:%s", phoneNumber), code, time.Minute*10).Err()
+	if err != nil {
+		return code, err
+	}
+
+	fmt.Printf("Stored SMS code %s for phone number %s (expires in 10 minutes)\n", code, phoneNumber)
+	return code, nil
+}
+
+// 初始化Redis客户端（请根据实际情况配置Redis地址、密码等）
+func InitRedis() error {
+	redisAddr := "localhost:6379"
+	redisPassword := "" // 若有密码请填写
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       0, // 使用默认数据库
+	})
+	ctx := context.Background()
+	pong, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Redis connected:", pong)
+
+	RedisClient = rdb
+	return nil
+}
+
+// 生成随机验证码
+func generateRandomCode(length int) (string, error) {
+	const numericChars = "0123456789"
+	bytes := make([]byte, length)
+	for i := range bytes {
+		bytes[i] = numericChars[rand.Intn(len(numericChars))]
+	}
+	return string(bytes), nil
 }

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"ferry/apis/public"
 	"ferry/global/orm"
 	"ferry/models/system"
 	jwt "ferry/pkg/jwtauth"
@@ -145,6 +147,30 @@ func Authenticator(c *gin.Context) (interface{}, error) {
 			if err != nil {
 				return nil, errors.New(fmt.Sprintf("创建本地用户失败，%v", err))
 			}
+		}
+	}
+
+	// 短信验证
+	if loginVal.LoginType == 2 {
+		phoneNumber := loginVal.Username
+		sms_code := loginVal.Password
+		if public.RedisClient == nil {
+			public.InitRedis()
+		}
+		ctx := context.Background()
+		val, err := public.RedisClient.Get(ctx, fmt.Sprintf("sms_code:%s", phoneNumber)).Result()
+		if err != nil {
+			loginLog.Status = "1"
+			loginLog.Msg = "验证码无效，请先获取验证码"
+			_, _ = loginLog.Create()
+			return nil, errors.New("验证码无效，请先获取验证码")
+		}
+		fmt.Println("Value from Redis:", val)
+		if sms_code != val {
+			loginLog.Status = "1"
+			loginLog.Msg = "验证码错误"
+			_, _ = loginLog.Create()
+			return nil, errors.New("验证码错误")
 		}
 	}
 

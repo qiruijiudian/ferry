@@ -3,6 +3,7 @@ package system
 import (
 	"ferry/global/orm"
 	"ferry/tools"
+	"fmt"
 )
 
 /*
@@ -19,11 +20,18 @@ type Login struct {
 
 func (u *Login) GetUser() (user SysUser, role SysRole, e error) {
 
-	e = orm.Eloquent.Table("sys_user").Where("username = ? ", u.Username).Find(&user).Error
-	if e != nil {
-		return
+	fmt.Println("Login type:", u.LoginType)
+	if u.LoginType == 2 {
+		e = orm.Eloquent.Table("sys_user").Where("phone = ? ", u.Username).Find(&user).Error
+		if e != nil {
+			return
+		}
+	} else {
+		e = orm.Eloquent.Table("sys_user").Where("username = ? ", u.Username).Find(&user).Error
+		if e != nil {
+			return
+		}
 	}
-
 	// 验证密码
 	if u.LoginType == 0 {
 		_, e = tools.CompareHashAndPassword(user.Password, u.Password)

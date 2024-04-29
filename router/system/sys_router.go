@@ -136,5 +136,8 @@ func registerPublicRouter(v1 *gin.RouterGroup) {
 	p := v1.Group("/public")
 	{
 		p.POST("/uploadFile", public.UploadFile)
+		// 添加新的 GET 路由用于下载文件
+		p.GET("/output.xlsx", public.DownloadFile)
+		p.POST("/send_sms", public.SendSms)
 	}
 }
