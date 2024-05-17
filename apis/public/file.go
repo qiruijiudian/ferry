@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -154,7 +155,7 @@ func SendSms(c *gin.Context) {
 	if err3 != nil {
 		panic(err3)
 	}
-
+	fmt.Println(tea.StringSlice(os.Args[1:]))
 	err2 := _main(tea.StringSlice(os.Args[1:]), request.Phone, code)
 	if err2 != nil {
 		panic(err2)
@@ -187,8 +188,24 @@ func storeSmsCodeToRedis(phoneNumber string) (string, error) {
 
 // 初始化Redis客户端（请根据实际情况配置Redis地址、密码等）
 func InitRedis() error {
-	redisAddr := "localhost:6379"
-	redisPassword := "" // 若有密码请填写
+
+	var redisAddr string
+
+	// 根据操作系统类型设置Redis地址
+	switch os := runtime.GOOS; os {
+	case "windows":
+		// Windows环境下的Redis地址
+		redisAddr = "localhost:6379"
+	case "linux":
+		// Linux环境下的Redis地址
+		redisAddr = "121.199.48.82:6379"
+	default:
+		fmt.Print("Unsupported operating system:", os)
+		redisAddr = "121.199.48.82:6379"
+	}
+	fmt.Print("operating system:", runtime.GOOS)
+
+	redisPassword := "cdqr2008"
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,

@@ -218,6 +218,9 @@ func CreateWorkOrder(c *gin.Context) (err error) {
 		err = fmt.Errorf("创建工单失败，%v", err.Error())
 		return
 	}
+	foundValue := ""
+	problem_text := ""
+	phoneNumber := ""
 
 	// 创建工单模版关联数据
 	for i := 0; i < len(workOrderValue.Tpls["form_structure"]); i++ {
@@ -225,12 +228,14 @@ func CreateWorkOrder(c *gin.Context) (err error) {
 			formDataJson      []byte
 			formStructureJson []byte
 		)
+
 		formDataJson, err = json.Marshal(workOrderValue.Tpls["form_data"][i])
 		if err != nil {
 			tx.Rollback()
 			err = fmt.Errorf("生成json字符串错误，%v", err.Error())
 			return
 		}
+
 		formStructureJson, err = json.Marshal(workOrderValue.Tpls["form_structure"][i])
 		if err != nil {
 			tx.Rollback()
@@ -238,18 +243,84 @@ func CreateWorkOrder(c *gin.Context) (err error) {
 			return
 		}
 
-		formData := process.TplData{
-			WorkOrder:     workOrderInfo.Id,
-			FormStructure: formStructureJson,
-			FormData:      formDataJson,
+		type FormStructure2 struct {
+			List []struct {
+				Name string `json:"name"`
+				Key  string `json:"key"`
+			} `json:"list"`
 		}
 
-		err = tx.Create(&formData).Error
+		tplData := process.TplData{
+			WorkOrder:     workOrderInfo.Id,
+			FormStructure: formStructureJson,
+			FormData:      formDataJson, // 使用之前解码好的formData变量
+		}
+
+		err = tx.Create(&tplData).Error
 		if err != nil {
 			tx.Rollback()
 			err = fmt.Errorf("创建工单模版关联数据失败，%v", err.Error())
 			return
 		}
+
+		var formStructure FormStructure2
+		err = json.Unmarshal(formStructureJson, &formStructure)
+		if err != nil {
+			tx.Rollback()
+			err = fmt.Errorf("解析form_structure JSON失败，%v", err.Error())
+			return
+		}
+		type FormData2 struct {
+			FormData json.RawMessage `gorm:"column:form_data; type: json" json:"form_data" form:"form_data"`
+		}
+		var formData FormData2
+		err = json.Unmarshal(formDataJson, &formData)
+		fmt.Printf("找到的formDataJson项的值: %s\n", formDataJson)
+		if err != nil {
+			tx.Rollback()
+			err = fmt.Errorf("解析form_data JSON失败，%v", err.Error())
+			return
+		}
+
+		formData.FormData = json.RawMessage(formDataJson)
+		// 解码FormData为map[string]interface{}
+		var formDataMap map[string]interface{}
+		err3 := json.Unmarshal(formData.FormData, &formDataMap)
+		if err3 != nil {
+			fmt.Printf("解码FormData失败，%v\n", err3)
+			continue
+		}
+		for _, item := range formStructure.List {
+			if item.Name == "故障现象" {
+				foundValue = item.Key
+				key := "input_" + foundValue
+				// 获取值
+				if value, exists := formDataMap[key]; exists {
+					if str, ok := value.(string); ok {
+						problem_text = str
+					} else {
+						fmt.Println("表单项的值不是字符串类型")
+					}
+				} else {
+					fmt.Println("找不到键为", key, "的值")
+				}
+			}
+			if item.Name == "联系方式" {
+				foundValue = item.Key
+				key := "input_" + foundValue
+				// 获取值
+				if value, exists := formDataMap[key]; exists {
+					if str, ok := value.(string); ok {
+						phoneNumber = str
+					} else {
+						fmt.Println("表单项的值不是字符串类型")
+					}
+				} else {
+					fmt.Println("找不到键为", key, "的值")
+				}
+			}
+		}
+		fmt.Printf("找到的'测试'表单项的值： %s\n  phone ： %s\n", problem_text, phoneNumber)
 	}
 
 	// 获取当前用户信息
@@ -337,6 +408,8 @@ func CreateWorkOrder(c *gin.Context) (err error) {
 				ProcessId:   workOrderValue.Process,
 				Id:          workOrderInfo.Id,
 				Title:       workOrderValue.Title,
+				ProblemText: problem_text,
+				PhoneNumber: phoneNumber,
 				Creator:     userInfo.NickName,
 				Priority:    workOrderValue.Priority,
 				CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),

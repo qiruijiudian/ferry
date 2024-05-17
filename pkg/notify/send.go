@@ -30,6 +30,8 @@ type BodyData struct {
 	Description   string      // 表格上面的描述信息
 	ProcessId     int         // 流程ID
 	Domain        string      // 域名地址
+	PhoneNumber   string      // 联系方式
+	ProblemText   string      // 问题描述
 }
 
 func (b *BodyData) ParsingTemplate() (err error) {
