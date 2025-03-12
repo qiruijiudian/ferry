@@ -848,7 +848,7 @@ func (h *Handle) HandleWorkOrder(
 			Source:      h.targetStateValue["id"].(string),
 			Processor:   currentUserInfo.NickName,
 			ProcessorId: tools.GetUserId(c),
-			Circulation: "结束",
+			Circulation: "工单结束",
 			Remarks:     "工单已结束",
 			Status:      2, // 其他状态
 		}).Error
@@ -935,5 +935,152 @@ func (h *Handle) HandleWorkOrder(
 		}
 		go ExecTask(execTasks, string(params))
 	}
+	return
+}
+
+func (h *Handle) SendEmail(workOrderId int) (err error) {
+
+	type FormStructure struct {
+		List []struct {
+			Name string `json:"name"`
+			Key  string `json:"key"`
+		} `json:"list"`
+	}
+	var (
+		sendToUserList   []system.SysUser
+		processInfo      process.Info
+		noticeList       []int
+		applyUserInfo    system.SysUser
+		workOrderInfo    process.WorkOrderInfo
+		workOrderTplData process.TplData
+		stateList        []interface{}
+		TplValue         map[string]interface{}
+		form_structure   FormStructure
+	)
+
+	// 查询tpl数据
+	err = orm.Eloquent.Model(&process.TplData{}).Where("work_order = ?", workOrderId).Find(&workOrderTplData).Error
+	if err != nil {
+		err = fmt.Errorf("获取tpl失败，%v", err.Error())
+		return
+	}
+	err = json.Unmarshal(workOrderTplData.FormData, &TplValue)
+	if err != nil {
+		fmt.Println("error2 : ", err.Error())
+		return
+	}
+	fmt.Println("dasdasdform_data3 : ", TplValue)
+
+	err = json.Unmarshal(workOrderTplData.FormStructure, &form_structure)
+	if err != nil {
+		fmt.Println("error2 : ", err.Error())
+		return
+	}
+	fmt.Println("dasdasdform_data4 : ", form_structure)
+	foundValue := ""
+	problem_text := ""
+	phoneNumber := ""
+
+	for _, item := range form_structure.List {
+		if item.Name == "故障现象" {
+			foundValue = item.Key
+			key := "input_" + foundValue
+			// 获取值
+			if value, exists := TplValue[key]; exists {
+				if str, ok := value.(string); ok {
+					problem_text = str
+				} else {
+					fmt.Println("表单项的值不是字符串类型")
+				}
+			} else {
+				fmt.Println("找不到键为", key, "的值")
+			}
+		}
+		if item.Name == "联系方式" {
+			foundValue = item.Key
+			key := "input_" + foundValue
+			// 获取值
+			if value, exists := TplValue[key]; exists {
+				if str, ok := value.(string); ok {
+					phoneNumber = str
+				} else {
+					fmt.Println("表单项的值不是字符串类型")
+				}
+			} else {
+				fmt.Println("找不到键为", key, "的值")
+			}
+		}
+	}
+	fmt.Printf("找到的'测试'表单项的值： %s\n  phone ： %s\n", problem_text, phoneNumber)
+
+	// 查询工单数据
+	err = orm.Eloquent.Model(&process.WorkOrderInfo{}).Where("id = ?", workOrderId).Find(&workOrderInfo).Error
+	if err != nil {
+		err = fmt.Errorf("获取所有处理人的用户信息失败，%v", err.Error())
+		return
+	}
+	err = json.Unmarshal(workOrderInfo.State, &stateList)
+	if err != nil {
+		err = fmt.Errorf("获取所有处理人的用户信息json失败，%v", err.Error())
+		return
+	}
+	sendToUserList, err = GetPrincipalUserInfo(stateList, workOrderInfo.Creator)
+	if err != nil {
+		err = fmt.Errorf("获取所有处理人的用户信息失败，%v", err.Error())
+		return
+	}
+	// 获取流程信息
+	err = orm.Eloquent.Model(&process.Info{}).Where("id = ?", workOrderInfo.Process).Find(&processInfo).Error
+	if err != nil {
+		return
+	}
+	// 查询工单创建人信息
+	err = orm.Eloquent.Model(&system.SysUser{}).Where("user_id = ?", workOrderInfo.Creator).Find(&applyUserInfo).Error
+	if err != nil {
+		return
+	}
+	// 获取流程通知类型列表
+	err = json.Unmarshal(processInfo.Notice, &noticeList)
+	if err != nil {
+		return
+	}
+
+	// return
+	// 获取需要抄送的邮件
+	// emailCCList := make([]string, 0)
+	// if currentNode["cc"] != nil && len(currentNode["cc"].([]interface{})) > 0 {
+	// 	err = orm.Eloquent.Model(&system.SysUser{}).
+	// 		Where("user_id in (?)", currentNode["cc"]).
+	// 		Pluck("email", &emailCCList).Error
+	// 	if err != nil {
+	// 		err = errors.New("查询邮件抄送人失败")
+	// 		return
+	// 	}
+	// }
+	// 发送通知
+	go func() {
+		bodyData := notify.BodyData{
+			SendTo: map[string]interface{}{
+				"userList": sendToUserList,
+			},
+			// EmailCcTo:   emailCCList,
+			Subject:     "您有一条待办工单，请及时处理",
+			Description: "您有一条待办工单请及时处理，工单描述如下",
+			Classify:    noticeList,
+			ProcessId:   workOrderInfo.Process,
+			Id:          workOrderInfo.Id,
+			Title:       workOrderInfo.Title,
+			ProblemText: problem_text,
+			PhoneNumber: phoneNumber,
+			Creator:     applyUserInfo.NickName,
+			Priority:    workOrderInfo.Priority,
+			CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
+		}
+		err = bodyData.SendNotify()
+		if err != nil {
+			fmt.Println("通知发送失败", err.Error())
+			return
+		}
+	}()
 	return
 }

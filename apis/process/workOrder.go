@@ -213,7 +213,7 @@ func UnityWorkOrder(c *gin.Context) {
 		Title:       workOrderInfo.Title,
 		WorkOrder:   workOrderInfo.Id,
 		State:       "结束工单",
-		Circulation: "结束",
+		Circulation: "工单结束",
 		Processor:   userInfo.NickName,
 		ProcessorId: tools.GetUserId(c),
 		Remarks:     "手动结束工单。",
@@ -237,6 +237,7 @@ func InversionWorkOrder(c *gin.Context) {
 		userInfo          system.SysUser
 		currentUserInfo   system.SysUser
 		costDurationValue int64
+		handle            service.Handle
 		params            struct {
 			WorkOrderId int    `json:"work_order_id"`
 			NodeId      string `json:"node_id"`
@@ -332,7 +333,7 @@ func InversionWorkOrder(c *gin.Context) {
 		Title:        workOrderInfo.Title,
 		WorkOrder:    workOrderInfo.Id,
 		State:        currentState["label"].(string),
-		Circulation:  "转交",
+		Circulation:  "转交工单",
 		Processor:    currentUserInfo.NickName,
 		ProcessorId:  tools.GetUserId(c),
 		Remarks:      fmt.Sprintf("此阶段负责人已转交给《%v》", userInfo.NickName),
@@ -342,6 +343,7 @@ func InversionWorkOrder(c *gin.Context) {
 
 	tx.Commit()
 
+	handle.SendEmail(workOrderInfo.Id)
 	app.OK(c, nil, "工单已手动结单")
 }
 

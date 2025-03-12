@@ -5,6 +5,7 @@ import (
 	"ferry/global/orm"
 	"ferry/pkg/logger"
 	"ferry/tools"
+	"fmt"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -66,6 +67,7 @@ type SysUser struct {
 	SysUserId
 	SysUserB
 	LoginM
+	ContactOrderNum int `json:"contactOrderNum" form:"contactOrderNum"`
 }
 
 func (SysUser) TableName() string {
@@ -82,7 +84,8 @@ type SysUserPage struct {
 	SysUserId
 	SysUserB
 	LoginM
-	DeptName string `gorm:"-" json:"deptName"`
+	DeptName        string `gorm:"-" json:"deptName"`
+	ContactOrderNum int    `json:"contactOrderNum" form:"contactOrderNum"`
 }
 
 type SysUserView struct {
@@ -229,10 +232,44 @@ func (e *SysUser) GetPage(pageSize int, pageIndex int) ([]SysUserPage, int, erro
 		return nil, 0, err
 	}
 	table.Where("sys_user.delete_time IS NULL").Count(&count)
+
+	// 对每个用户，查询包含特定processor值的行数
+	for i, user := range doc {
+		processorCount, err := countProcessorRows(user.UserId)
+		if err != nil {
+			fmt.Println(err)
+			return nil, 0, err
+		}
+		doc[i].ContactOrderNum = processorCount
+	}
+
 	return doc, count, nil
 }
 
-//加密
+// countProcessorRows 返回给定用户ID的工作订单中包含特定processor值的行数
+// func countProcessorRows(userID int) (int, error) {
+// 	var count int
+// 	fmt.Println("user", strconv.Itoa(userID))
+// 	table := orm.Eloquent.Select("COUNT(*)").Table("p_work_order_info")
+// 	table = table.Where("is_end = 0")
+// 	table = table.Where("JSON_CONTAINS(state, JSON_OBJECT('processor', ?))", "%"+strconv.Itoa(userID)+"%").First(&count)
+// 	fmt.Println("count", count)
+// 	return userID, nil
+// }
+
+func countProcessorRows(userID int) (int, error) {
+	var count int
+	// 使用反引号包裹SQL语句以确保SQL字符串正确处理特殊字符
+	query := fmt.Sprintf(`SELECT COUNT(*) as count FROM p_work_order_info WHERE is_end = 0 AND JSON_CONTAINS(state, JSON_OBJECT('processor', %d))`, userID)
+
+	row := orm.Eloquent.Raw(query).Row()
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// 加密
 func (e *SysUser) Encrypt() (err error) {
 	if e.Password == "" {
 		return
@@ -247,7 +284,7 @@ func (e *SysUser) Encrypt() (err error) {
 	}
 }
 
-//添加
+// 添加
 func (e SysUser) Insert() (id int, err error) {
 	if err = e.Encrypt(); err != nil {
 		return
@@ -269,7 +306,7 @@ func (e SysUser) Insert() (id int, err error) {
 	return
 }
 
-//修改
+// 修改
 func (e *SysUser) Update(id int) (update SysUser, err error) {
 	if e.Password != "" {
 		if err = e.Encrypt(); err != nil {
