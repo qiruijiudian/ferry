@@ -17,6 +17,7 @@ type Param struct {
 	C       *gin.Context
 	DB      *gorm.DB
 	ShowSQL bool
+	OrderBy string
 }
 
 type Paginator struct {
@@ -62,7 +63,11 @@ func Paging(p *Param, result interface{}, args ...interface{}) (*Paginator, erro
 		param.PerPage = 10
 	}
 
-	if param.Sort == 0 || param.Sort == -1 {
+	// 修改排序优先级：优先使用OrderBy参数
+	if p.OrderBy != "" {
+		db = db.Order(p.OrderBy)
+	} else if param.Sort == 0 || param.Sort == -1 {
+		// 保留原有逻辑作为fallback
 		db = db.Order("id desc")
 	}
 
@@ -86,7 +91,8 @@ func Paging(p *Param, result interface{}, args ...interface{}) (*Paginator, erro
 
 	done := make(chan bool, 1)
 
-	go countRecords(db, result, done, &count)
+	go countRecords(db, done, &count)
+	// go countRecords(db, result, done, &count)
 
 	if param.Page == 1 {
 		offset = 0
@@ -109,7 +115,12 @@ func Paging(p *Param, result interface{}, args ...interface{}) (*Paginator, erro
 	return &paginator, nil
 }
 
-func countRecords(db *gorm.DB, anyType interface{}, done chan bool, count *int) {
-	db.Model(anyType).Count(count)
+func countRecords(db *gorm.DB, done chan bool, count *int) {
+	db.Count(count) // 直接使用原始查询条件统计
 	done <- true
 }
+
+// func countRecords(db *gorm.DB, anyType interface{}, done chan bool, count *int) {
+// 	db.Model(anyType).Count(count)
+// 	done <- true
+// }

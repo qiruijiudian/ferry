@@ -95,6 +95,8 @@ INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES (
 INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', 'common', '/api/v1/user/avatar', 'POST', NULL, NULL, NULL);
 INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', 'common', '/api/v1/user/pwd', 'PUT', NULL, NULL, NULL);
 INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', 'common', '/api/v1/dashboard', 'GET', NULL, NULL, NULL);
+INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', 'common', '/api/v1/work-order/projectlist', 'GET', NULL, NULL, NULL);
+INSERT INTO `casbin_rule`(`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', 'admin', '/api/v1/work-order/projectlist', 'GET', NULL, NULL, NULL);
 COMMIT;
 
 BEGIN;
@@ -285,6 +287,8 @@ INSERT INTO sys_menu (menu_id, menu_name, title, icon, path, paths, menu_type, `
 INSERT INTO sys_menu (menu_id, menu_name, title, icon, path, paths, menu_type, `action`, permission, parent_id, no_cache, breadcrumb, component, sort, visible, create_by, update_by, is_frame, create_time, update_time, delete_time) VALUES (369, '', '克隆流程', 'bug', '/api/v1/process/clone/:id', '/0/63/281/282/309/369', 'A', 'POST', '', 309, '0', '', '', 0, '1', '1', '', 1, '2021-02-19 23:25:18', '2021-02-19 23:25:18', null);
 INSERT INTO sys_menu (menu_id, menu_name, title, icon, path, paths, menu_type, action, permission, parent_id, no_cache, breadcrumb, component, sort, visible, create_by, update_by, is_frame, create_time, update_time, delete_time) VALUES (370, '', '重开工单', 'guide', '', '/0/268/271/370', 'F', '', 'process:list:myCreate:reopen', 271, '0', '', '', 0, '0', '1', '', 1, '2021-03-02 22:45:17', '2021-03-02 22:45:17', null);
 INSERT INTO sys_menu (menu_id, menu_name, title, icon, path, paths, menu_type, action, permission, parent_id, no_cache, breadcrumb, component, sort, visible, create_by, update_by, is_frame, create_time, update_time, delete_time) VALUES (371, '', '重开工单', 'bug', '/api/v1/work-order/reopen/:id', '/0/63/281/333/371', 'A', 'POST', '', 333, '0', '', '', 0, '1', '1', '', 1, '2021-03-02 22:46:46', '2021-03-02 22:46:46', null);
+INSERT INTO sys_menu (`menu_id`, `menu_name`, `title`, `icon`, `path`, `paths`, `menu_type`, `action`, `permission`, `parent_id`, `no_cache`, `breadcrumb`, `component`, `sort`, `visible`, `create_by`, `update_by`, `is_frame`, `create_time`, `update_time`, `delete_time`) VALUES (372, 'Project', '项目工单', 'form', '/process/project', '/0/268/373', 'C', '', 'process:list:applyProcessList', 268, '0', '', '/process/list/project', 0, '0', '1', '1', 1, '2020-07-26 21:51:40', '2020-07-26 21:52:12', null);
+INSERT INTO sys_menu (`menu_id`, `menu_name`, `title`, `icon`, `path`, `paths`, `menu_type`, `action`, `permission`, `parent_id`, `no_cache`, `breadcrumb`, `component`, `sort`, `visible`, `create_by`, `update_by`, `is_frame`, `create_time`, `update_time`, `delete_time`) VALUES (373, '', '查询项目', 'bug', '/api/v1/work-order/projectlist', '/0/63/281/333/374', 'A', 'GET', '', 333, '0', '', '', 0, '1', '1', '', 1, '2020-07-26 21:51:44', '2020-07-26 21:52:10', null);
 COMMIT;
 
 BEGIN;

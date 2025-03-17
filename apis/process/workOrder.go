@@ -7,6 +7,7 @@ import (
 	"ferry/models/process"
 	"ferry/models/system"
 	"ferry/pkg/notify"
+	"ferry/pkg/pagination"
 	"ferry/pkg/service"
 	"ferry/tools"
 	"ferry/tools/app"
@@ -20,6 +21,24 @@ import (
 /*
  @Author : lanyulei
 */
+
+type ProjectListResult struct {
+	TplID         uint            `gorm:"column:tpl_id" json:"tplId"`
+	WorkOrderID   uint            `gorm:"column:work_order_id" json:"workOrderId"`
+	CreateTime    time.Time       `gorm:"column:create_time" json:"createTime"`
+	UpdateTime    time.Time       `gorm:"column:update_time" json:"updateTime"`
+	WorkOrder     int             `gorm:"column:work_order" json:"-"`
+	FormStructure json.RawMessage `gorm:"column:form_structure" json:"formStructure"`
+	FormData      json.RawMessage `gorm:"column:form_data" json:"formData"`
+	Title         string          `json:"title"`
+	Priority      int             `json:"priority"`
+	Process       int             `gorm:"column:process" json:"processId"`
+	State         json.RawMessage `json:"state"`
+	IsEnd         int             `gorm:"column:is_end" json:"isEnd"`
+	RelatedPerson json.RawMessage `gorm:"column:related_person" json:"relatedPerson"`
+	Creator       int             `json:"creator"`
+	Classify      int             `json:"classify"`
+}
 
 // 流程结构包括节点，流转和模版
 func ProcessStructure(c *gin.Context) {
@@ -574,4 +593,89 @@ func ReopenWorkOrder(c *gin.Context) {
 	tx.Commit()
 
 	app.OK(c, nil, "")
+}
+
+func GetprojectList(c *gin.Context) {
+	var (
+		result interface{}
+		err    error
+		params pagination.ListRequest
+	)
+
+	// 绑定分页参数
+	if err = c.ShouldBindQuery(&params); err != nil {
+		app.Error(c, -1, err, "参数绑定失败")
+		return
+	}
+
+	// 创建连表查询
+	db := orm.Eloquent.Model(&process.TplData{}).
+		Select(`
+		p_work_order_tpl_data.id as tpl_id,
+		p_work_order_info.id as work_order_id,
+		p_work_order_tpl_data.create_time,
+		p_work_order_tpl_data.update_time,
+		p_work_order_tpl_data.work_order,
+		p_work_order_tpl_data.form_structure,
+        p_work_order_tpl_data.form_data,
+		p_work_order_info.title,
+		p_work_order_info.priority,
+		p_work_order_info.create_time,
+		p_work_order_info.process,
+		p_work_order_info.state,
+		p_work_order_info.is_end,
+		p_work_order_info.related_person,
+		p_work_order_info.creator,
+		p_work_order_info.classify
+	`).
+		Joins("LEFT JOIN p_work_order_info ON p_work_order_tpl_data.work_order = p_work_order_info.id").
+		Where("JSON_EXTRACT(p_work_order_tpl_data.form_structure, '$.id') IN (3)")
+
+	// 时间范围筛选（使用工单表的创建时间）
+	if startTime := c.Query("startTime"); startTime != "" {
+		db = db.Where("p_work_order_info.create_time >= ?", startTime)
+	}
+	if endTime := c.Query("endTime"); endTime != "" {
+		db = db.Where("p_work_order_info.create_time <= ?", endTime)
+	}
+	if isEnd := c.Query("isEnd"); isEnd != "" {
+		db = db.Where("p_work_order_info.is_end = ?", isEnd)
+	}
+	if creator := c.Query("creator"); creator != "" {
+		db = db.Where("p_work_order_info.creator = ?", creator)
+	}
+	if title := c.Query("title"); title != "" {
+		db = db.Where("p_work_order_info.title LIKE CONCAT('%',?,'%')", title)
+	}
+	if priority := c.Query("priority"); priority != "" {
+		priorityID, err := strconv.Atoi(priority)
+		if err != nil {
+			app.Error(c, -1, err, "处理器ID格式错误")
+			return
+		}
+		db = db.Where("JSON_EXTRACT(p_work_order_tpl_data.form_data, '$.rate_1741574352000_36134') in (?)", priorityID)
+	}
+	if processor := c.Query("processor"); processor != "" {
+		processorID, err := strconv.Atoi(processor)
+		if err != nil {
+			app.Error(c, -1, err, "处理器ID格式错误")
+			return
+		}
+		db = db.Where(`JSON_CONTAINS(p_work_order_info.state->'$[*].processor', JSON_ARRAY(?))`, processorID)
+	}
+
+	// 分页查询
+	result, err = pagination.Paging(&pagination.Param{
+		C:       c,
+		DB:      db,
+		ShowSQL: true,
+		OrderBy: "p_work_order_info.id DESC",
+	}, &[]ProjectListResult{}, map[string]map[string]interface{}{})
+
+	if err != nil {
+		app.Error(c, -1, err, "查询失败")
+		return
+	}
+
+	app.OK(c, result, "")
 }
