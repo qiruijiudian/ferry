@@ -26,5 +26,6 @@ func RegisterWorkOrderRouter(v1 *gin.RouterGroup, authMiddleware *jwt.GinJWTMidd
 		workOrderRouter.PUT("/active-order/:id", process.ActiveOrder)
 		workOrderRouter.DELETE("/delete/:id", process.DeleteWorkOrder)
 		workOrderRouter.POST("/reopen/:id", process.ReopenWorkOrder)
+		workOrderRouter.POST("/decrypt-phone", process.DecryptPhone)
 	}
 }

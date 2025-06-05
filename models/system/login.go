@@ -21,7 +21,8 @@ type Login struct {
 func (u *Login) GetUser() (user SysUser, role SysRole, e error) {
 
 	fmt.Println("Login type:", u.LoginType)
-	if u.LoginType == 2 {
+	// 2是web短信登录 3是小程序一键登录
+	if u.LoginType == 2 || u.LoginType == 3 {
 		e = orm.Eloquent.Table("sys_user").Where("phone = ? ", u.Username).Find(&user).Error
 		if e != nil {
 			return

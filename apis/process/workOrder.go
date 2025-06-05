@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"ferry/global/orm"
@@ -12,15 +13,27 @@ import (
 	"ferry/tools"
 	"ferry/tools/app"
 	"fmt"
+	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
+var wechatTokenCache struct {
+	sync.RWMutex
+	AccessToken string
+	ExpiresAt   int64 // 过期时间戳（毫秒级）
+}
+
 /*
- @Author : lanyulei
+@Author : lanyulei
 */
+type WeChatConfig struct {
+	AppID     string `json:"appid"`
+	AppSecret string `json:"appSecret"`
+}
 
 type ProjectListResult struct {
 	TplID         uint            `gorm:"column:tpl_id" json:"tplId"`
@@ -629,7 +642,7 @@ func GetprojectList(c *gin.Context) {
 		p_work_order_info.classify
 	`).
 		Joins("LEFT JOIN p_work_order_info ON p_work_order_tpl_data.work_order = p_work_order_info.id").
-		Where("JSON_EXTRACT(p_work_order_tpl_data.form_structure, '$.id') IN (3)")
+		Where("JSON_EXTRACT(p_work_order_tpl_data.form_structure, '$.id') IN (7)")
 
 	// 时间范围筛选（使用工单表的创建时间）
 	if startTime := c.Query("startTime"); startTime != "" {
@@ -678,4 +691,161 @@ func GetprojectList(c *gin.Context) {
 	}
 
 	app.OK(c, result, "")
+}
+
+func DecryptPhone(c *gin.Context) {
+	type params struct {
+		Code          string `json:"code"`
+		EncryptedData string `json:"encryptedData"`
+		IV            string `json:"iv"`
+	}
+
+	var p params
+	if err := c.ShouldBindJSON(&p); err != nil {
+		app.Error(c, -1, err, "参数绑定失败")
+		return
+	}
+
+	// 1. Get access token
+	// accessToken, err := getWeChatAccessToken()
+	accessToken, err := getCachedAccessToken()
+	fmt.Println("accessToken ", string(accessToken))
+	if err != nil {
+		app.Error(c, 1001, err, "获取access_token失败")
+		return
+	}
+
+	// 2. Call WeChat phone number API
+	phoneInfo, err := getWeChatPhoneNumber(accessToken, p.Code)
+	if err != nil {
+		app.Error(c, 1002, err, "获取手机号失败")
+		return
+	}
+	fmt.Println("phoneInfo:", phoneInfo)
+	// 3. Return phone number
+	app.OK(c, gin.H{
+		"phone": phoneInfo.PhoneNumber,
+	}, "成功获取手机号")
+}
+
+// func getWeChatAccessToken() (string, error) {
+// 	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
+// 		"wx94f204acca2ce859",
+// 		"f92c275c583d02c8b134a2a501bcc92c")
+
+// 	resp, err := http.Get(url)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer resp.Body.Close()
+
+// 	var result struct {
+// 		AccessToken string `json:"access_token"`
+// 		ErrCode     int    `json:"errcode"`
+// 		ErrMsg      string `json:"errmsg"`
+// 	}
+// 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+// 		return "", err
+// 	}
+
+// 	if result.ErrCode != 0 {
+// 		return "", fmt.Errorf("微信接口错误: %d-%s", result.ErrCode, result.ErrMsg)
+// 	}
+
+// 	return result.AccessToken, nil
+// }
+
+func getWeChatPhoneNumber(accessToken, code string) (*struct {
+	PhoneNumber string `json:"phoneNumber"`
+}, error) {
+	url := fmt.Sprintf("https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=%s", accessToken)
+
+	body, _ := json.Marshal(map[string]string{"code": code})
+	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		ErrCode   int    `json:"errcode"`
+		ErrMsg    string `json:"errmsg"`
+		PhoneInfo struct {
+			PhoneNumber string `json:"phoneNumber"`
+		} `json:"phone_info"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if result.ErrCode != 0 {
+		return nil, fmt.Errorf("微信接口错误: %d-%s", result.ErrCode, result.ErrMsg)
+	}
+
+	return &struct {
+		PhoneNumber string `json:"phoneNumber"`
+	}{
+		PhoneNumber: result.PhoneInfo.PhoneNumber,
+	}, nil
+}
+
+func fetchNewAccessToken() (string, int64, error) {
+	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
+		"{appid}", "{secret}")
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", 0, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int64  `json:"expires_in"`
+		ErrCode     int    `json:"errcode"`
+		ErrMsg      string `json:"errmsg"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", 0, err
+	}
+
+	if result.ErrCode != 0 {
+		return "", 0, fmt.Errorf("微信接口错误: %d-%s", result.ErrCode, result.ErrMsg)
+	}
+
+	return result.AccessToken, result.ExpiresIn, nil
+}
+
+// 获取带缓存的access_token
+func getCachedAccessToken() (string, error) {
+	// 先尝试读取缓存
+	wechatTokenCache.RLock()
+	if time.Now().Unix() < wechatTokenCache.ExpiresAt-300 { // 提前5分钟刷新
+		defer wechatTokenCache.RUnlock()
+		return wechatTokenCache.AccessToken, nil
+	}
+	wechatTokenCache.RUnlock()
+
+	// 加锁防止并发刷新
+	wechatTokenCache.Lock()
+	defer wechatTokenCache.Unlock()
+
+	// 双重检查锁
+	if time.Now().Unix() < wechatTokenCache.ExpiresAt-300 {
+		return wechatTokenCache.AccessToken, nil
+	}
+
+	// 重新获取token
+	token, expiresIn, err := fetchNewAccessToken()
+	if err != nil {
+		return "", err
+	}
+
+	// 更新缓存（微信返回的expires_in通常是7200秒）
+	wechatTokenCache.AccessToken = token
+	wechatTokenCache.ExpiresAt = time.Now().Unix() + expiresIn
+
+	return token, nil
 }
