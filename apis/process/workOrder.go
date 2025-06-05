@@ -728,33 +728,6 @@ func DecryptPhone(c *gin.Context) {
 	}, "成功获取手机号")
 }
 
-// func getWeChatAccessToken() (string, error) {
-// 	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
-// 		"wx94f204acca2ce859",
-// 		"f92c275c583d02c8b134a2a501bcc92c")
-
-// 	resp, err := http.Get(url)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer resp.Body.Close()
-
-// 	var result struct {
-// 		AccessToken string `json:"access_token"`
-// 		ErrCode     int    `json:"errcode"`
-// 		ErrMsg      string `json:"errmsg"`
-// 	}
-// 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-// 		return "", err
-// 	}
-
-// 	if result.ErrCode != 0 {
-// 		return "", fmt.Errorf("微信接口错误: %d-%s", result.ErrCode, result.ErrMsg)
-// 	}
-
-// 	return result.AccessToken, nil
-// }
-
 func getWeChatPhoneNumber(accessToken, code string) (*struct {
 	PhoneNumber string `json:"phoneNumber"`
 }, error) {
